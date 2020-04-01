@@ -39,6 +39,65 @@ class Embedding(nn.Module):
         return emb
 
 
+class EmbeddingPlusChar(nn.Module):
+    def __init__(self, word_vectors, char_vectors, hidden_size, drop_prob):
+        super(EmbeddingPlusChar, self).__init__()
+        self.drop_prob = drop_prob
+        self.embed = nn.Embedding.from_pretrained(word_vectors)
+        self.char_embed = nn.Embedding.from_pretrained(char_vectors)
+        self.proj = nn.Linear(word_vectors.size(1), hidden_size, bias=False)
+        self.hwy = HighwayEncoder(2, hidden_size * 2)
+        self.cnn = CNN(hidden_size=hidden_size, embed_size=char_vectors.size(1))
+
+    def forward(self, c, w):
+        # word embedding
+        # w, (batch_size, seq_len)
+        emb = self.embed(w)  # (batch_size, seq_len, embed_size)
+        emb = F.dropout(emb, self.drop_prob, self.training)
+        emb = self.proj(emb)  # (batch_size, seq_len, hidden_size)
+
+        # char embedding
+        # c, (batch_size, sentence_length, max_word_length)
+        batch_size, sentence_length, max_word_length = c.size()
+        c = c.contiguous().view(-1, max_word_length)  # (batch_size*sentence_len, max_word_len)
+        c = self.char_embed(c)  # (batch_size*sentence_len, max_word_len, char_embed_size)
+        c = F.dropout(c, self.drop_prob, self.training)
+        c_emb = self.cnn(c.permute(0, 2, 1), sentence_length, batch_size)
+        # c_emb  (batch_size, seq_len, cnn_hidden_size)
+
+        # concatenate word & char embedding
+        concat_emb = torch.cat((emb, c_emb), 2)
+        # concat_emb, (batch_size, seq_len, embed_size + char_embed_size)
+
+        return self.hwy(concat_emb)
+
+
+class CNN(nn.Module):
+    """CNN layer for char embedding for Bidaf, inspired by the original BiDAF paper, 'Bidirectional Attention Flow for Machine
+    Comprehension'.
+    URL: https://arxiv.org/abs/1611.01603.
+    Basically followed the implementation of Assignment 5 cnn.py and model_embeddings.py
+    Args:
+        char_vectors (torch.Tensor): Pre-trained char vectors. (Provided by the teaching staff)
+        hidden_size (int): Size of hidden activations.
+        drop_prob (float): Probability of zero-ing out activations
+    """
+    def __init__(self, hidden_size, embed_size):
+        super(CNN, self).__init__()
+        self.hidden_size = hidden_size
+        self.conv1d = nn.Conv1d(embed_size, hidden_size, kernel_size=5, bias=True)
+
+    def forward(self, x, sentence_length, batch_size):
+
+        x_conv = self.conv1d(x)  # (batch_size*sentence_len, max_word_len, char_embed_size)
+
+        x_conv_out = torch.max(F.relu(x_conv), dim=-1)[0]
+        # (batch_size*sentence_len, hidden_size, char_embed_size_without_padding)
+        x_conv_out = x_conv_out.view(batch_size, sentence_length, self.hidden_size)
+        # (batch_size*sentence_len, hidden_size)
+        return x_conv_out
+
+
 class HighwayEncoder(nn.Module):
     """Encode an input sequence using a highway network.
 
