@@ -17,7 +17,7 @@ import util
 from args import get_train_args
 from collections import OrderedDict
 from json import dumps
-from models import BiDAF
+from models import BiDAF, BiDAF_char
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from ujson import load as json_load
@@ -47,10 +47,20 @@ def main(args):
 
     # Get model
     log.info('Building model...')
-    model = BiDAF(word_vectors=word_vectors,
-                  char_vectors=char_vectors,
-                  hidden_size=args.hidden_size,
-                  drop_prob=args.drop_prob)
+
+    if args.model.lower() == 'BiDAF'.lower():
+        model = BiDAF(word_vectors=word_vectors,
+                      hidden_size=args.hidden_size,
+                      drop_prob=args.drop_prob)
+
+    elif args.model.lower() == 'BiDAF_Char'.lower():
+        model = BiDAF_char(word_vectors=word_vectors,
+                           char_vectors=char_vectors,
+                           hidden_size=args.hidden_size,
+                           drop_prob=args.drop_prob)
+    else:
+        raise NameError('No model named ' + args.model)
+
     model = nn.DataParallel(model, args.gpu_ids)
     if args.load_path:
         log.info(f'Loading checkpoint from {args.load_path}...')
@@ -105,7 +115,15 @@ def main(args):
                 optimizer.zero_grad()
 
                 # Forward
-                log_p1, log_p2 = model(cc_idxs, qc_idxs, cw_idxs, qw_idxs)
+                if args.model.lower() == 'BiDAF'.lower():
+                    log_p1, log_p2 = model(cc_idxs, qc_idxs)
+
+                elif args.model.lower() == "BiDAF_Char".lower():
+                    log_p1, log_p2 = model(cc_idxs, qc_idxs, cw_idxs, qw_idxs)
+
+                else:
+                    raise NameError('No model named ' + args.model)
+
                 y1, y2 = y1.to(device), y2.to(device)
                 loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
                 loss_val = loss.item()
