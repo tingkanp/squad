@@ -105,9 +105,6 @@ def main(args):
                 optimizer.zero_grad()
 
                 # Forward
-                print("#######")
-                print(cc_idxs.shape, cc_idxs)
-                print(cw_idxs.shape, cw_idxs)
                 log_p1, log_p2 = model(cc_idxs, qc_idxs, cw_idxs, qw_idxs)
                 y1, y2 = y1.to(device), y2.to(device)
                 loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)

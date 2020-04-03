@@ -57,9 +57,9 @@ class BiDAF(nn.Module):
                                       drop_prob=drop_prob)
 
     def forward(self,  cc_idxs, qc_idxs, cw_idxs, qw_idxs):
-        c_mask = torch.zeros_like(cw_idxs) != cw_idxs
-        q_mask = torch.zeros_like(qw_idxs) != qw_idxs
-        c_len, q_len = c_mask.sum(-1), q_mask.sum(-1)
+        c_mask = torch.zeros_like(cw_idxs) != cw_idxs  # label non-padding as 1 otherwise 0
+        q_mask = torch.zeros_like(qw_idxs) != qw_idxs  # label non-padding as 1 otherwise 0
+        c_len, q_len = c_mask.sum(-1), q_mask.sum(-1)  # true length of each sequence (batch_size)
 
         c_emb = self.emb(cc_idxs, cw_idxs)  # (batch_size, c_len, hidden_size)
         q_emb = self.emb(qc_idxs, qw_idxs)  # (batch_size, q_len, hidden_size)
@@ -69,11 +69,9 @@ class BiDAF(nn.Module):
 
         att = self.att(c_enc, q_enc,
                        c_mask, q_mask)  # (batch_size, c_len, 8 * hidden_size)
-        #         print(att.shape)
 
         # keep the same dimension as above, but with more feature information embeded
         # att = self.self_att(att, c_mask)  # (batch_size, c_len, 8 * hidden_size)
-        #         print(att.shape)
 
         mod = self.mod(att, c_len)  # (batch_size, c_len, 2 * hidden_size)
 
