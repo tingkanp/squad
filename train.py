@@ -26,7 +26,8 @@ from util import collate_fn, SQuAD
 
 def main(args):
     # Set up logging and devices
-    args.save_dir = util.get_save_dir(args.save_dir, args.name, training=True)
+    args.save_dir = util.get_save_dir(args.save_dir, args.name,
+                                      training=True, latest_checkpoint=args.latest_checkpoint)
     log = util.get_logger(args.save_dir, args.name)
     tbx = SummaryWriter(args.save_dir)
     device, args.gpu_ids = util.get_available_devices()
@@ -62,7 +63,11 @@ def main(args):
         raise NameError('No model named ' + args.model)
 
     model = nn.DataParallel(model, args.gpu_ids)
-    if args.load_path:
+    if args.latest_checkpoint:
+        args.load_path = util.get_latest_checkpoint(args.save_dir)
+        log.info(f'Loading latest checkpoint from {args.load_path}...')
+        model, step = util.load_model(model, args.load_path, args.gpu_ids)
+    elif args.load_path:
         log.info(f'Loading checkpoint from {args.load_path}...')
         model, step = util.load_model(model, args.load_path, args.gpu_ids)
     else:

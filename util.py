@@ -345,6 +345,21 @@ def load_model(model, checkpoint_path, gpu_ids, return_step=True):
     return model
 
 
+def get_latest_checkpoint(save_dir):
+
+    largest_itr = 0
+    file_name = None
+    for file in os.listdir(save_dir):
+        if not file.startswith('step_'):
+            continue
+        itr = int(file.split("_")[1].split(".")[0])
+        if itr > largest_itr:
+            largest_itr = itr
+            file_name = file
+
+    return os.path.join(save_dir, file_name)
+
+
 def get_available_devices():
     """Get IDs of all available GPUs.
 
@@ -450,7 +465,7 @@ def save_preds(preds, save_dir, file_name='predictions.csv'):
     return save_path
 
 
-def get_save_dir(base_dir, name, training, id_max=100):
+def get_save_dir(base_dir, name, training, latest_checkpoint, id_max=100):
     """Get a unique save directory by appending the smallest positive integer
     `id < id_max` that is not already taken (i.e., no dir exists with that id).
 
@@ -458,6 +473,7 @@ def get_save_dir(base_dir, name, training, id_max=100):
         base_dir (str): Base directory in which to make save directories.
         name (str): Name to identify this training run. Need not be unique.
         training (bool): Save dir. is for training (determines subdirectory).
+        latest_checkpoint (bool): use latest checkpoint to continue training.
         id_max (int): Maximum ID number before raising an exception.
 
     Returns:
@@ -466,6 +482,9 @@ def get_save_dir(base_dir, name, training, id_max=100):
     for uid in range(1, id_max):
         subdir = 'train' if training else 'test'
         save_dir = os.path.join(base_dir, subdir, f'{name}-{uid:02d}')
+        if latest_checkpoint:
+            return save_dir
+
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
             return save_dir

@@ -245,3 +245,6 @@ def add_train_test_args(parser):
                         type=str,
                         default=None,
                         help='Path to load as a model checkpoint.')
+    parser.add_argument('--latest_checkpoint',
+                        type=lambda s: s.lower().startswith('t'),
+                        help='Use latest checkpoint to continue training.')
