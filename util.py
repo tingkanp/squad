@@ -479,15 +479,18 @@ def get_save_dir(base_dir, name, training, latest_checkpoint, id_max=100):
     Returns:
         save_dir (str): Path to a new directory with a unique name.
     """
+    last_exist_dir = None
     for uid in range(1, id_max):
         subdir = 'train' if training else 'test'
         save_dir = os.path.join(base_dir, subdir, f'{name}-{uid:02d}')
-        if latest_checkpoint:
-            return save_dir
 
         if not os.path.exists(save_dir):
+            if latest_checkpoint and last_exist_dir:
+                return last_exist_dir
             os.makedirs(save_dir)
             return save_dir
+
+        last_exist_dir = save_dir
 
     raise RuntimeError('Too many save directories created with the same name. \
                        Delete old save directories or use another name.')
