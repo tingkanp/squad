@@ -17,7 +17,7 @@ import util
 from args import get_train_args
 from collections import OrderedDict
 from json import dumps
-from models import BiDAF, BiDAF_char
+from models import BiDAF, BiDAF_Char
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from ujson import load as json_load
@@ -55,7 +55,7 @@ def main(args):
                       drop_prob=args.drop_prob)
 
     elif args.model.lower() == 'BiDAF_Char'.lower():
-        model = BiDAF_char(word_vectors=word_vectors,
+        model = BiDAF_Char(word_vectors=word_vectors,
                            char_vectors=char_vectors,
                            hidden_size=args.hidden_size,
                            drop_prob=args.drop_prob)

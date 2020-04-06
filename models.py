@@ -68,7 +68,7 @@ class BiDAF(nn.Module):
         return out
 
 
-class BiDAF_char(nn.Module):
+class BiDAF_Char(nn.Module):
     """BiDAF with Character-level embedding
 
     Based on the paper:
@@ -89,7 +89,7 @@ class BiDAF_char(nn.Module):
         drop_prob (float): Dropout probability.
     """
     def __init__(self, word_vectors, char_vectors, hidden_size, drop_prob=0.):
-        super(BiDAF_char, self).__init__()
+        super(BiDAF_Char, self).__init__()
         self.hidden_size = hidden_size * 2
         self.emb = layers.EmbeddingPlusChar(word_vectors=word_vectors,
                                             char_vectors=char_vectors,

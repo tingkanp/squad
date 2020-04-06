@@ -228,7 +228,7 @@ def add_train_test_args(parser):
                         type=int,
                         default=64,
                         help='Batch size per GPU. Scales automatically when \
-                              multiple GPUs are available.')
+                              multiple train_record_files are available.')
     parser.add_argument('--use_squad_v2',
                         type=lambda s: s.lower().startswith('t'),
                         default=True,
