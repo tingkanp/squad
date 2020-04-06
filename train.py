@@ -158,6 +158,7 @@ def main(args):
                     log.info(f'Evaluating at step {step}...')
                     ema.assign(model)
                     results, pred_dict = evaluate(model, dev_loader, device,
+                                                  args.model.lower(),
                                                   args.dev_eval_file,
                                                   args.max_ans_len,
                                                   args.use_squad_v2)
@@ -180,7 +181,7 @@ def main(args):
                                    num_visuals=args.num_visuals)
 
 
-def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
+def evaluate(model, data_loader, device, model_name, eval_file, max_len, use_squad_v2):
     nll_meter = util.AverageMeter()
 
     model.eval()
@@ -196,7 +197,12 @@ def evaluate(model, data_loader, device, eval_file, max_len, use_squad_v2):
             batch_size = cw_idxs.size(0)
 
             # Forward
-            log_p1, log_p2 = model(cc_idxs, qc_idxs, cw_idxs, qw_idxs)
+            if model_name == 'BiDAF'.lower():
+                log_p1, log_p2 = model(cw_idxs, qw_idxs)
+            elif model_name == "BiDAF_Char".lower():
+                log_p1, log_p2 = model(cc_idxs, qc_idxs, cw_idxs, qw_idxs)
+            else:
+                raise NameError('No model named ' + model_name)
             y1, y2 = y1.to(device), y2.to(device)
             loss = F.nll_loss(log_p1, y1) + F.nll_loss(log_p2, y2)
             nll_meter.update(loss.item(), batch_size)
