@@ -37,6 +37,15 @@ def get_setup_args():
     parser.add_argument('--char2idx_file',
                         type=str,
                         default='./data/char2idx.json')
+    parser.add_argument('--pos2idx_file',
+                        type=str,
+                        default='./data/pos2idx.json')
+    parser.add_argument('--ner2idx_file',
+                        type=str,
+                        default='./data/ner2idx.json')
+    parser.add_argument('--iob2idx_file',
+                        type=str,
+                        default='./data/iob2idx.json')
     parser.add_argument('--answer_file',
                         type=str,
                         default='./data/answer.json')
@@ -194,6 +203,15 @@ def add_common_args(parser):
     parser.add_argument('--char_emb_file',
                         type=str,
                         default='./data/char_emb.json')
+    parser.add_argument('--pos_emb_file',
+                        type=str,
+                        default='./data/pos_emb.json')
+    parser.add_argument('--ner_emb_file',
+                        type=str,
+                        default='./data/ner_emb.json')
+    parser.add_argument('--iob_emb_file',
+                        type=str,
+                        default='./data/iob_emb.json')
     parser.add_argument('--train_eval_file',
                         type=str,
                         default='./data/train_eval.json')
