@@ -14,6 +14,7 @@ Author:
 import numpy as np
 import os
 import spacy
+import en_core_web_sm
 import ujson as json
 import urllib.request
 
@@ -88,17 +89,32 @@ def convert_idx(text, tokens):
     return spans
 
 
-def process_file(filename, data_type, word_counter, char_counter):
+def process_file(filename, data_type, word_counter, char_counter, NER_dict, IOB_dict):
     print(f"Pre-processing {data_type} examples...")
     examples = []
     eval_examples = {}
     total = 0
+    spacy_nlp = en_core_web_sm.load()
     with open(filename, "r") as fh:
         source = json.load(fh)
         for article in tqdm(source["data"]):
             for para in article["paragraphs"]:
                 context = para["context"].replace(
                     "''", '" ').replace("``", '" ')
+
+                # context NER, IOB
+                context_ner = []
+                context_iob = []
+                for x in spacy_nlp(context):
+                    x_ner = x.ent_type
+                    x_iob = x.ent_iob
+                    context_ner.append(x_ner)
+                    context_iob.append(x_iob)
+                    if not NER_dict.get(x_ner):
+                        NER_dict[x_ner] = len(NER_dict)
+                    if not IOB_dict.get(x_iob):
+                        IOB_dict[x_iob] = len(IOB_dict)
+
                 context_tokens = word_tokenize(context)
                 context_chars = [list(token) for token in context_tokens]
                 spans = convert_idx(context, context_tokens)
@@ -110,6 +126,20 @@ def process_file(filename, data_type, word_counter, char_counter):
                     total += 1
                     ques = qa["question"].replace(
                         "''", '" ').replace("``", '" ')
+
+                    # question NER, IOB
+                    ques_ner = []
+                    ques_iob = []
+                    for x in spacy_nlp(ques):
+                        x_ner = x.ent_type
+                        x_iob = x.ent_iob
+                        ques_ner.append(x_ner)
+                        ques_iob.append(x_iob)
+                        if not NER_dict.get(x_ner):
+                            NER_dict[x_ner] = len(NER_dict)
+                        if not IOB_dict.get(x_iob):
+                            IOB_dict[x_iob] = len(IOB_dict)
+
                     ques_tokens = word_tokenize(ques)
                     ques_chars = [list(token) for token in ques_tokens]
                     for token in ques_tokens:
@@ -132,7 +162,11 @@ def process_file(filename, data_type, word_counter, char_counter):
                         y2s.append(y2)
                     example = {"context_tokens": context_tokens,
                                "context_chars": context_chars,
+                               "context_ner": context_ner,
+                               "context_iob": context_iob,
                                "ques_tokens": ques_tokens,
+                               "ques_ner": ques_ner,
+                               "ques_iob": ques_iob,
                                "ques_chars": ques_chars,
                                "y1s": y1s,
                                "y2s": y2s,
@@ -243,7 +277,7 @@ def is_answerable(example):
     return len(example['y2s']) > 0 and len(example['y1s']) > 0
 
 
-def build_features(args, examples, data_type, out_file, word2idx_dict, char2idx_dict, is_test=False):
+def build_features(args, examples, data_type, out_file, word2idx_dict, char2idx_dict, NER_dict, IOB_dict, is_test=False):
     para_limit = args.test_para_limit if is_test else args.para_limit
     ques_limit = args.test_ques_limit if is_test else args.ques_limit
     ans_limit = args.ans_limit
@@ -265,8 +299,12 @@ def build_features(args, examples, data_type, out_file, word2idx_dict, char2idx_
     total_ = 0
     meta = {}
     context_idxs = []
+    context_ners = []
+    context_iobs = []
     context_char_idxs = []
     ques_idxs = []
+    ques_ners = []
+    ques_iobs = []
     ques_char_idxs = []
     y1s = []
     y2s = []
@@ -291,17 +329,37 @@ def build_features(args, examples, data_type, out_file, word2idx_dict, char2idx_
             return 1
 
         context_idx = np.zeros([para_limit], dtype=np.int32)
+        context_ner = np.zeros([para_limit], dtype=np.int32)
+        context_iob = np.zeros([para_limit], dtype=np.int32)
         context_char_idx = np.zeros([para_limit, char_limit], dtype=np.int32)
         ques_idx = np.zeros([ques_limit], dtype=np.int32)
+        ques_ner = np.zeros([ques_limit], dtype=np.int32)
+        ques_iob = np.zeros([ques_limit], dtype=np.int32)
         ques_char_idx = np.zeros([ques_limit, char_limit], dtype=np.int32)
 
+        print("example[context_tokens]", example["context_tokens"])
+        print("context_ner.shape", context_ner.shape) # (400,)
+        print("context_ner.shape", context_iob.shape) # (400,)
+        print("len(example[context_tokens]))", len(example["context_tokens"])) #149
         for i, token in enumerate(example["context_tokens"]):
             context_idx[i] = _get_word(token)
+            print(i, len(NER_dict[example["context_ner"][i]]), NER_dict[example["context_ner"][i]])
+            print(i, len(IOB_dict[example["context_iob"][i]]), IOB_dict[example["context_iob"][i]])
+            context_ner[i] = NER_dict[example["context_ner"][i]]
+            context_iob[i] = IOB_dict[example["context_iob"][i]]
+        print("example[context_ner])", example["context_ner"])
+        print("context_ner", context_ner)
         context_idxs.append(context_idx)
+        context_ners.append(context_ner)
+        context_iobs.append(context_iob)
 
         for i, token in enumerate(example["ques_tokens"]):
             ques_idx[i] = _get_word(token)
+            ques_ner[i] = NER_dict[example["ques_ner"][i]]
+            ques_iob[i] = IOB_dict[example["ques_iob"][i]]
         ques_idxs.append(ques_idx)
+        ques_ners.append(ques_ner)
+        ques_iobs.append(ques_iob)
 
         for i, token in enumerate(example["context_chars"]):
             for j, char in enumerate(token):
@@ -328,8 +386,12 @@ def build_features(args, examples, data_type, out_file, word2idx_dict, char2idx_
 
     np.savez(out_file,
              context_idxs=np.array(context_idxs),
+             context_ners=np.array(context_ners),
+             context_iobs=np.array(context_iobs),
              context_char_idxs=np.array(context_char_idxs),
              ques_idxs=np.array(ques_idxs),
+             ques_ners=np.array(ques_ners),
+             ques_iobs=np.array(ques_iobs),
              ques_char_idxs=np.array(ques_char_idxs),
              y1s=np.array(y1s),
              y2s=np.array(y2s),
@@ -349,21 +411,27 @@ def save(filename, obj, message=None):
 def pre_process(args):
     # Process training set and use it to decide on the word/character vocabularies
     word_counter, char_counter = Counter(), Counter()
-    train_examples, train_eval = process_file(args.train_file, "train", word_counter, char_counter)
+    NER_dict = {"": 0}
+    IOB_dict = {"O": 0}
+    train_examples, train_eval = process_file(args.train_file, "train", word_counter, char_counter, NER_dict, IOB_dict)
     word_emb_mat, word2idx_dict = get_embedding(
         word_counter, 'word', emb_file=args.glove_file, vec_size=args.glove_dim, num_vectors=args.glove_num_vecs)
     char_emb_mat, char2idx_dict = get_embedding(
         char_counter, 'char', emb_file=None, vec_size=args.char_dim)
 
     # Process dev and test sets
-    dev_examples, dev_eval = process_file(args.dev_file, "dev", word_counter, char_counter)
-    build_features(args, train_examples, "train", args.train_record_file, word2idx_dict, char2idx_dict)
-    dev_meta = build_features(args, dev_examples, "dev", args.dev_record_file, word2idx_dict, char2idx_dict)
+    dev_examples, dev_eval = process_file(args.dev_file, "dev",
+                                          word_counter, char_counter, NER_dict, IOB_dict)
+    build_features(args, train_examples, "train",
+                   args.train_record_file, word2idx_dict, char2idx_dict, NER_dict, IOB_dict)
+    dev_meta = build_features(args, dev_examples,
+                              "dev", args.dev_record_file, word2idx_dict, char2idx_dict, NER_dict, IOB_dict)
     if args.include_test_examples:
-        test_examples, test_eval = process_file(args.test_file, "test", word_counter, char_counter)
+        test_examples, test_eval = process_file(args.test_file, "test",
+                                                word_counter, char_counter, NER_dict, IOB_dict)
         save(args.test_eval_file, test_eval, message="test eval")
         test_meta = build_features(args, test_examples, "test",
-                                   args.test_record_file, word2idx_dict, char2idx_dict, is_test=True)
+                                   args.test_record_file, word2idx_dict, char2idx_dict, NER_dict, IOB_dict, is_test=True)
         save(args.test_meta_file, test_meta, message="test meta")
 
     save(args.word_emb_file, word_emb_mat, message="word embedding")
