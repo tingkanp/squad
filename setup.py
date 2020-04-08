@@ -174,6 +174,7 @@ def process_file(filename, data_type, word_counter, char_counter, pos_counter, n
                                                  "spans": spans,
                                                  "answers": answer_texts,
                                                  "uuid": qa["id"]}
+                break
         print(f"{len(examples)} questions in total")
     return examples, eval_examples
 
@@ -349,7 +350,7 @@ def build_features(args, examples, data_type, out_file, word2idx_dict, char2idx_
         ques_pos_idx = np.zeros([ques_limit], dtype=np.int32)
         ques_ner_idx = np.zeros([ques_limit], dtype=np.int32)
         ques_iob_idx = np.zeros([ques_limit], dtype=np.int32)
-
+        print(pos2idx_dict)
         for i, token in enumerate(example["context_tokens"]):
             context_idx[i] = _get_word(token)
             context_pos_idx[i] = pos2idx_dict.get(example["context_pos"][i], 1)
@@ -357,6 +358,7 @@ def build_features(args, examples, data_type, out_file, word2idx_dict, char2idx_
             context_iob_idx[i] = iob2idx_dict.get(example["context_iob"][i], 1)
 
         context_idxs.append(context_idx)
+        print(context_pos_idx)
         context_pos_idxs.append(context_pos_idx)
         context_ner_idxs.append(context_ner_idx)
         context_iob_idxs.append(context_iob_idx)
@@ -439,15 +441,15 @@ def pre_process(args):
     dev_examples, dev_eval = process_file(args.dev_file, "dev",
                                           word_counter, char_counter, pos_counter, ner_counter, iob_counter)
     build_features(args, train_examples, "train",
-                   args.train_record_file, word2idx_dict, char2idx_dict, pos_counter, ner_counter, iob_counter)
+                   args.train_record_file, word2idx_dict, char2idx_dict, pos2idx_dict, ner2idx_dict, iob2idx_dict)
     dev_meta = build_features(args, dev_examples,
-                              "dev", args.dev_record_file, word2idx_dict, char2idx_dict, pos_counter, ner_counter, iob_counter)
+                              "dev", args.dev_record_file, word2idx_dict, char2idx_dict, pos2idx_dict, ner2idx_dict, iob2idx_dict)
     if args.include_test_examples:
         test_examples, test_eval = process_file(args.test_file, "test",
                                                 word_counter, char_counter, pos_counter, ner_counter, iob_counter)
         save(args.test_eval_file, test_eval, message="test eval")
         test_meta = build_features(args, test_examples, "test",
-                                   args.test_record_file, word2idx_dict, char2idx_dict, pos_counter, ner_counter, iob_counter, is_test=True)
+                                   args.test_record_file, word2idx_dict, char2idx_dict, pos2idx_dict, ner2idx_dict, iob2idx_dict, is_test=True)
         save(args.test_meta_file, test_meta, message="test meta")
 
     save(args.word_emb_file, word_emb_mat, message="word embedding")
