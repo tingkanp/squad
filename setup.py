@@ -174,7 +174,7 @@ def process_file(filename, data_type, word_counter, char_counter, pos_counter, n
                                                  "spans": spans,
                                                  "answers": answer_texts,
                                                  "uuid": qa["id"]}
-                break
+
         print(f"{len(examples)} questions in total")
     return examples, eval_examples
 
