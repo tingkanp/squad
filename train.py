@@ -17,7 +17,7 @@ import util
 from args import get_train_args
 from collections import OrderedDict
 from json import dumps
-from models import BiDAF, BiDAF_Char
+from models import BiDAF, BiDAF_Char, BiDAF_CharTag
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from ujson import load as json_load
@@ -45,20 +45,32 @@ def main(args):
     log.info('Loading embeddings...')
     word_vectors = util.torch_from_json(args.word_emb_file)
     char_vectors = util.torch_from_json(args.char_emb_file)
+    pos_vectors = util.torch_from_json(args.pos_emb_file)
+    ner_vectors = util.torch_from_json(args.ner_emb_file)
+    iob_vectors = util.torch_from_json(args.iob_emb_file)
 
     # Get model
     log.info('Building model...')
 
-    if args.model.lower() == 'BiDAF'.lower():
+    if args.model.lower() == "BiDAF".lower():
         model = BiDAF(word_vectors=word_vectors,
                       hidden_size=args.hidden_size,
                       drop_prob=args.drop_prob)
 
-    elif args.model.lower() == 'BiDAF_Char'.lower():
+    elif args.model.lower() == "BiDAF_Char".lower():
         model = BiDAF_Char(word_vectors=word_vectors,
                            char_vectors=char_vectors,
                            hidden_size=args.hidden_size,
                            drop_prob=args.drop_prob)
+
+    elif args.model.lower() == "BiDAF_CharTag".lower():
+        model = BiDAF_CharTag(word_vectors=word_vectors,
+                              char_vectors=char_vectors,
+                              pos_vectors=pos_vectors,
+                              ner_vectors=ner_vectors,
+                              iob_vectors=iob_vectors,
+                              hidden_size=args.hidden_size,
+                              drop_prob=args.drop_prob)
     else:
         raise NameError('No model named ' + args.model)
 
@@ -110,9 +122,11 @@ def main(args):
     while epoch != args.num_epochs:
         epoch += 1
         log.info(f'Starting epoch {epoch}...')
-        with torch.enable_grad(), \
-                tqdm(total=len(train_loader.dataset)) as progress_bar:
-            for cw_idxs, cc_idxs, qw_idxs, qc_idxs, y1, y2, ids in train_loader:
+        with torch.enable_grad(), tqdm(total=len(train_loader.dataset)) as progress_bar:
+            for cw_idxs, cc_idxs, c_pos_idxs, c_ner_idxs, c_iob_idxs, \
+                 qw_idxs, qc_idxs, q_pos_idxs, q_ner_idxs, q_iob_idxs, \
+                 y1, y2, ids in train_loader:
+
                 # Setup for forward
                 cw_idxs = cw_idxs.to(device)
                 qw_idxs = qw_idxs.to(device)
@@ -120,11 +134,27 @@ def main(args):
                 optimizer.zero_grad()
 
                 # Forward
-                if args.model.lower() == 'BiDAF'.lower():
+                if args.model.lower() == "BiDAF".lower():
                     log_p1, log_p2 = model(cw_idxs, qw_idxs)
 
                 elif args.model.lower() == "BiDAF_Char".lower():
+                    cc_idxs = cc_idxs.to(device)
+                    qc_idxs = qc_idxs.to(device)
+
                     log_p1, log_p2 = model(cc_idxs, qc_idxs, cw_idxs, qw_idxs)
+
+                elif args.model.lower() == "BiDAF_CharTag".lower():
+                    cc_idxs = cc_idxs.to(device)
+                    qc_idxs = qc_idxs.to(device)
+                    c_pos_idxs = c_pos_idxs.to(device)
+                    c_ner_idxs = c_ner_idxs.to(device)
+                    c_iob_idxs = c_iob_idxs.to(device)
+                    q_pos_idxs = q_pos_idxs.to(device)
+                    q_ner_idxs = q_ner_idxs.to(device)
+                    q_iob_idxs = q_iob_idxs.to(device)
+
+                    log_p1, log_p2 = model(cw_idxs, cc_idxs, c_pos_idxs, c_ner_idxs, c_iob_idxs,
+                                           qw_idxs, qc_idxs, q_pos_idxs, q_ner_idxs, q_iob_idxs)
 
                 else:
                     raise NameError('No model named ' + args.model)
@@ -188,9 +218,10 @@ def evaluate(model, data_loader, device, model_name, eval_file, max_len, use_squ
     pred_dict = {}
     with open(eval_file, 'r') as fh:
         gold_dict = json_load(fh)
-    with torch.no_grad(), \
-            tqdm(total=len(data_loader.dataset)) as progress_bar:
-        for cw_idxs, cc_idxs, qw_idxs, qc_idxs, y1, y2, ids in data_loader:
+    with torch.no_grad(), tqdm(total=len(data_loader.dataset)) as progress_bar:
+        for cw_idxs, cc_idxs, c_pos_idxs, c_ner_idxs,c_iob_idxs, \
+             qw_idxs, qc_idxs, q_pos_idxs, q_ner_idxs, q_iob_idxs,\
+             y1, y2, ids in data_loader:
             # Setup for forward
             cw_idxs = cw_idxs.to(device)
             qw_idxs = qw_idxs.to(device)
@@ -199,8 +230,25 @@ def evaluate(model, data_loader, device, model_name, eval_file, max_len, use_squ
             # Forward
             if model_name == 'BiDAF'.lower():
                 log_p1, log_p2 = model(cw_idxs, qw_idxs)
+
             elif model_name == "BiDAF_Char".lower():
+                cc_idxs = cc_idxs.to(device)
+                qc_idxs = qc_idxs.to(device)
+
                 log_p1, log_p2 = model(cc_idxs, qc_idxs, cw_idxs, qw_idxs)
+
+            elif model_name == "BiDAF_CharTag".lower():
+                cc_idxs = cc_idxs.to(device)
+                qc_idxs = qc_idxs.to(device)
+                c_pos_idxs = c_pos_idxs.to(device)
+                c_ner_idxs = c_ner_idxs.to(device)
+                c_iob_idxs = c_iob_idxs.to(device)
+                q_pos_idxs = q_pos_idxs.to(device)
+                q_ner_idxs = q_ner_idxs.to(device)
+                q_iob_idxs = q_iob_idxs.to(device)
+
+                log_p1, log_p2 = model(cw_idxs, cc_idxs, c_pos_idxs, c_ner_idxs, c_iob_idxs,
+                                       qw_idxs, qc_idxs, q_pos_idxs, q_ner_idxs, q_iob_idxs)
             else:
                 raise NameError('No model named ' + model_name)
             y1, y2 = y1.to(device), y2.to(device)

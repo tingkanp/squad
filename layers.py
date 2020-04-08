@@ -72,6 +72,50 @@ class EmbeddingPlusChar(nn.Module):
         return self.hwy(concat_emb)
 
 
+class EmbeddingCharTag(nn.Module):
+    def __init__(self, word_vectors, char_vectors,
+                 pos_vectors, ner_vectors, iob_vectors, hidden_size, drop_prob, freeze_tag=True):
+        super(EmbeddingCharTag, self).__init__()
+        self.drop_prob = drop_prob
+        self.pos_size = pos_vectors.shape[-1]
+        self.ner_size = ner_vectors.shape[-1]
+        self.iob_size = iob_vectors.shape[-1]
+        self.embed = nn.Embedding.from_pretrained(word_vectors)
+        self.char_embed = nn.Embedding.from_pretrained(char_vectors)
+        self.pos_embed = nn.Embedding.from_pretrained(pos_vectors, freeze=freeze_tag)
+        self.ner_embed = nn.Embedding.from_pretrained(ner_vectors, freeze=freeze_tag)
+        self.iob_embed = nn.Embedding.from_pretrained(iob_vectors, freeze=freeze_tag)
+        self.proj = nn.Linear(word_vectors.size(1), hidden_size, bias=False)
+        self.hwy = HighwayEncoder(2, hidden_size * 2 + self.pos_size + self.ner_size + self.iob_size)
+        self.cnn = CNN(hidden_size=hidden_size, embed_size=char_vectors.size(1))
+
+    def forward(self, w, c, pos, ner, iob):
+        # word embedding
+        # w, (batch_size, seq_len)
+        emb = self.embed(w)  # (batch_size, seq_len, embed_size)
+        emb = F.dropout(emb, self.drop_prob, self.training)
+        emb = self.proj(emb)  # (batch_size, seq_len, hidden_size)
+
+        # char embedding
+        # c, (batch_size, sentence_length, max_word_length)
+        batch_size, sentence_length, max_word_length = c.size()
+        c = c.contiguous().view(-1, max_word_length)  # (batch_size*sentence_len, max_word_len)
+        c = self.char_embed(c)  # (batch_size*sentence_len, max_word_len, char_embed_size)
+        c = F.dropout(c, self.drop_prob, self.training)
+        c_emb = self.cnn(c.permute(0, 2, 1), sentence_length, batch_size)
+        # c_emb  (batch_size, seq_len, cnn_hidden_size)
+
+        # POS, NER, IOB
+        pos_emb = self.pos_embed(pos)
+        ner_emb = self.ner_embed(ner)
+        iob_emb = self.iob_embed(iob)
+
+        # concatenate word & char embedding
+        concat_emb = torch.cat((emb, c_emb, pos_emb, ner_emb, iob_emb), 2)
+
+        return self.hwy(concat_emb)
+
+
 class CNN(nn.Module):
     """CNN layer for char embedding for Bidaf, inspired by the original BiDAF paper, 'Bidirectional Attention Flow for Machine
     Comprehension'.

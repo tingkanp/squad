@@ -350,7 +350,7 @@ def build_features(args, examples, data_type, out_file, word2idx_dict, char2idx_
         ques_pos_idx = np.zeros([ques_limit], dtype=np.int32)
         ques_ner_idx = np.zeros([ques_limit], dtype=np.int32)
         ques_iob_idx = np.zeros([ques_limit], dtype=np.int32)
-        print(pos2idx_dict)
+
         for i, token in enumerate(example["context_tokens"]):
             context_idx[i] = _get_word(token)
             context_pos_idx[i] = pos2idx_dict.get(example["context_pos"][i], 1)
@@ -358,7 +358,6 @@ def build_features(args, examples, data_type, out_file, word2idx_dict, char2idx_
             context_iob_idx[i] = iob2idx_dict.get(example["context_iob"][i], 1)
 
         context_idxs.append(context_idx)
-        print(context_pos_idx)
         context_pos_idxs.append(context_pos_idx)
         context_ner_idxs.append(context_ner_idx)
         context_iob_idxs.append(context_iob_idx)

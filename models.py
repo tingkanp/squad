@@ -130,3 +130,77 @@ class BiDAF_Char(nn.Module):
         out = self.out(att, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
 
         return out
+
+
+class BiDAF_CharTag(nn.Module):
+    """BiDAF with Character-level embedding & Spacy Tag
+
+    Based on the paper:
+    "Bidirectional Attention Flow for Machine Comprehension"
+    by Minjoon Seo, Aniruddha Kembhavi, Ali Farhadi, Hannaneh Hajishirzi
+    (https://arxiv.org/abs/1611.01603).
+
+    Follows a high-level structure commonly found in SQuAD models:
+        - Embedding Plus Character Embedding layer: Embed word/char indices to get word/char vectors.
+        - Encoder layer: Encode the embedded sequence.
+        - Attention layer: Apply an attention mechanism to the encoded sequence.
+        - Model encoder layer: Encode the sequence again.
+        - Output layer: Simple layer (e.g., fc + softmax) to get final outputs.
+
+    Args:
+        word_vectors (torch.Tensor): Pre-trained word vectors.
+        hidden_size (int): Number of features in the hidden state at each layer.
+        drop_prob (float): Dropout probability.
+    """
+    def __init__(self, word_vectors, char_vectors, pos_vectors,
+                 ner_vectors, iob_vectors, hidden_size, drop_prob=0.):
+        super(BiDAF_CharTag, self).__init__()
+        self.hidden_size = hidden_size * 2
+        self.pos_size = pos_vectors.shape[-1]
+        self.ner_size = ner_vectors.shape[-1]
+        self.iob_size = iob_vectors.shape[-1]
+        self.emb = layers.EmbeddingCharTag(word_vectors=word_vectors,
+                                           char_vectors=char_vectors,
+                                           pos_vectors=pos_vectors,
+                                           ner_vectors=ner_vectors,
+                                           iob_vectors=iob_vectors,
+                                           hidden_size=hidden_size,
+                                           drop_prob=drop_prob)
+
+        self.enc = layers.RNNEncoder(input_size=self.hidden_size + self.pos_size + self.ner_size + self.iob_size,
+                                     hidden_size=self.hidden_size,
+                                     num_layers=1,
+                                     drop_prob=drop_prob)
+
+        self.att = layers.BiDAFAttention(hidden_size=2 * self.hidden_size,
+                                         drop_prob=drop_prob)
+
+        self.mod = layers.RNNEncoder(input_size=8 * self.hidden_size,
+                                     hidden_size=self.hidden_size,
+                                     num_layers=2,
+                                     drop_prob=drop_prob)
+
+        self.out = layers.BiDAFOutput(hidden_size=self.hidden_size,
+                                      drop_prob=drop_prob)
+
+    def forward(self, cw_idxs, cc_idxs, c_pos_idxs, c_ner_idxs, c_iob_idxs,
+                      qw_idxs, qc_idxs, q_pos_idxs, q_ner_idxs, q_iob_idxs):
+
+        c_mask = torch.zeros_like(cw_idxs) != cw_idxs  # label non-padding as 1 otherwise 0
+        q_mask = torch.zeros_like(qw_idxs) != qw_idxs  # label non-padding as 1 otherwise 0
+        c_len, q_len = c_mask.sum(-1), q_mask.sum(-1)  # true length of each sequence (batch_size)
+
+        c_emb = self.emb(cw_idxs, cc_idxs, c_pos_idxs, c_ner_idxs, c_iob_idxs)  # (batch_size, c_len, hidden_size)
+        q_emb = self.emb(qw_idxs, qc_idxs, q_pos_idxs, q_ner_idxs, q_iob_idxs)  # (batch_size, q_len, hidden_size)
+
+        c_enc = self.enc(c_emb, c_len)  # (batch_size, c_len, 2 * hidden_size)
+        q_enc = self.enc(q_emb, q_len)  # (batch_size, q_len, 2 * hidden_size)
+
+        att = self.att(c_enc, q_enc, c_mask, q_mask)  # (batch_size, c_len, 8 * hidden_size)
+
+        mod = self.mod(att, c_len)  # (batch_size, c_len, 2 * hidden_size)
+
+        out = self.out(att, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
+
+        return out
+
