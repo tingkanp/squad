@@ -174,7 +174,6 @@ def process_file(filename, data_type, word_counter, char_counter, pos_counter, n
                                                  "spans": spans,
                                                  "answers": answer_texts,
                                                  "uuid": qa["id"]}
-                break
         print(f"{len(examples)} questions in total")
     return examples, eval_examples
 
@@ -398,7 +397,7 @@ def build_features(args, examples, data_type, out_file, word2idx_dict, char2idx_
 
     np.savez(out_file,
              context_idxs=np.array(context_idxs),
-             context_pos_idxs=np.array(context_char_idxs),
+             context_pos_idxs=np.array(context_pos_idxs),
              context_ner_idxs=np.array(context_ner_idxs),
              context_iob_idxs=np.array(context_iob_idxs),
              context_char_idxs=np.array(context_char_idxs),
