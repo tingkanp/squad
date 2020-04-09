@@ -155,10 +155,7 @@ class BiDAF_CharTag(nn.Module):
     def __init__(self, word_vectors, char_vectors, pos_vectors,
                  ner_vectors, iob_vectors, hidden_size, drop_prob=0.):
         super(BiDAF_CharTag, self).__init__()
-        self.hidden_size = hidden_size * 2
-        self.pos_size = pos_vectors.shape[-1]
-        self.ner_size = ner_vectors.shape[-1]
-        self.iob_size = iob_vectors.shape[-1]
+        self.hidden_size = hidden_size
         self.emb = layers.EmbeddingCharTag(word_vectors=word_vectors,
                                            char_vectors=char_vectors,
                                            pos_vectors=pos_vectors,
@@ -167,7 +164,7 @@ class BiDAF_CharTag(nn.Module):
                                            hidden_size=hidden_size,
                                            drop_prob=drop_prob)
 
-        self.enc = layers.RNNEncoder(input_size=self.hidden_size + self.pos_size + self.ner_size + self.iob_size,
+        self.enc = layers.RNNEncoder(input_size=self.hidden_size,
                                      hidden_size=self.hidden_size,
                                      num_layers=1,
                                      drop_prob=drop_prob)
