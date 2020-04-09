@@ -45,31 +45,31 @@ class EmbeddingPlusChar(nn.Module):
         self.drop_prob = drop_prob
         self.embed = nn.Embedding.from_pretrained(word_vectors)
         self.char_embed = nn.Embedding.from_pretrained(char_vectors)
-        self.proj = nn.Linear(word_vectors.size(1), hidden_size, bias=False)
-        self.hwy = HighwayEncoder(2, hidden_size * 2)
-        self.cnn = CNN(hidden_size=hidden_size, embed_size=char_vectors.size(1))
+        self.word_vec_size = word_vectors.size(1)
+        self.char_vec_size = char_vectors.size(1)
+        self.cnn = CNN(hidden_size=hidden_size, embed_size=self.char_vec_size)
+        self.proj = nn.Linear(self.word_vec_size + hidden_size, hidden_size, bias=False)
+        self.hwy = HighwayEncoder(2, hidden_size)
 
     def forward(self, c, w):
         # word embedding
         # w, (batch_size, seq_len)
         emb = self.embed(w)  # (batch_size, seq_len, embed_size)
-        emb = F.dropout(emb, self.drop_prob, self.training)
-        emb = self.proj(emb)  # (batch_size, seq_len, hidden_size)
 
         # char embedding
-        # c, (batch_size, sentence_length, max_word_length)
         batch_size, sentence_length, max_word_length = c.size()
         c = c.contiguous().view(-1, max_word_length)  # (batch_size*sentence_len, max_word_len)
         c = self.char_embed(c)  # (batch_size*sentence_len, max_word_len, char_embed_size)
         c = F.dropout(c, self.drop_prob, self.training)
-        c_emb = self.cnn(c.permute(0, 2, 1), sentence_length, batch_size)
-        # c_emb  (batch_size, seq_len, cnn_hidden_size)
+        c_emb = self.cnn(c.permute(0, 2, 1), sentence_length, batch_size)  # (batch_size, seq_len, cnn_hidden_size)
 
         # concatenate word & char embedding
-        concat_emb = torch.cat((emb, c_emb), 2)
-        # concat_emb, (batch_size, seq_len, embed_size + char_embed_size)
+        concat_emb = torch.cat((emb, c_emb), 2)  # (batch_size, seq_len, embed_size + char_embed_size)
 
-        return self.hwy(concat_emb)
+        emb = F.dropout(concat_emb, self.drop_prob, self.training)
+        emb = self.proj(emb)
+
+        return self.hwy(emb)
 
 
 class CNN(nn.Module):
