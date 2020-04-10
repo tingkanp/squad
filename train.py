@@ -121,7 +121,7 @@ def main(args):
 
                 # Forward
                 if args.model.lower() == 'BiDAF'.lower():
-                    log_p1, log_p2 = model(cc_idxs, qc_idxs)
+                    log_p1, log_p2 = model(cw_idxs, qw_idxs)
 
                 elif args.model.lower() == "BiDAF_Char".lower():
                     log_p1, log_p2 = model(cc_idxs, qc_idxs, cw_idxs, qw_idxs)
