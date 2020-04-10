@@ -90,7 +90,7 @@ class BiDAF_Char(nn.Module):
     """
     def __init__(self, word_vectors, char_vectors, hidden_size, drop_prob=0.):
         super(BiDAF_Char, self).__init__()
-        self.hidden_size = hidden_size * 2
+        self.hidden_size = hidden_size
         self.emb = layers.EmbeddingPlusChar(word_vectors=word_vectors,
                                             char_vectors=char_vectors,
                                             hidden_size=hidden_size,
